@@ -1,0 +1,8 @@
+# build artifacts / local junk
+firmware.tar.gz
+ota_resp.html
+__pycache__/
+*.pyc
+mpy/
+tmp_*.tar.gz
+tmp_ota.py

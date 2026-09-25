@@ -1,0 +1,9 @@
+{
+  "region": "odeska",
+  "check_interval": 60,
+  "wifi_ssid": "",
+  "wifi_pass": "",
+  "ota_enabled": true,
+  "blink_on_ms": 500,
+  "blink_off_ms": 500
+}
