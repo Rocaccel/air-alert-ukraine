@@ -339,8 +339,19 @@ def poll(srv, cfg, state, config_store, set_led=None):
             form = _parse_qs(raw.decode("utf-8", "ignore"))
             old_ssid = cfg.get("wifi_ssid", "")
             old_pass = cfg.get("wifi_pass", "")
+            region_warn = False
             if "region" in form:
-                cfg["region"] = form.get("region", cfg.get("region", "odeska"))
+                new_slug = form.get("region", "")
+                try:
+                    import alerts as _a
+                    ok = _a.valid_region(new_slug)
+                except Exception:
+                    ok = False
+                if ok:
+                    cfg["region"] = new_slug
+                else:
+                    # мусор/опечатка: молча в дефолт не падаем, оставляем старый
+                    region_warn = True
             try:
                 cfg["check_interval"] = max(10, min(3600, int(form.get("check_interval", cfg.get("check_interval", 60)))))
             except Exception:
@@ -356,6 +367,8 @@ def poll(srv, cfg, state, config_store, set_led=None):
                     msg = "Сохранено, перезагрузка для нового WiFi..."
                 else:
                     msg = "Сохранено"
+                if region_warn:
+                    msg += " (регион не распознан — оставлен прежний)"
                 logbuf.log("web", "save region=%s interval=%s ota=%s wifi_changed=%s" % (
                     cfg.get("region"), cfg.get("check_interval"),
                     cfg.get("ota_enabled"), wifi_changed))

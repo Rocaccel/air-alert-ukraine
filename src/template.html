@@ -106,12 +106,14 @@ footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim)}
 <div class="section panel panel1"><div class="section-header"><div class="section-title">Регион и проверка</div></div>
 <div class="card">
 <div class="form-group"><label for="region">Регион мониторинга тревоги (печать для поиска)</label>
-<input id="region" name="region" type="text" list="region-list" value="{{REGION_SLUG}}" placeholder="Одеська..." autocomplete="off"/>
+<input id="region" name="region_label" type="text" list="region-list" value="{{REGION}}" placeholder="Одеська..." autocomplete="off"/>
+<input id="region_slug" name="region" type="hidden" value="{{REGION_SLUG}}"/>
 <datalist id="region-list">{{REGION_OPTIONS}}</datalist>
 <div class="hint">Области + м.Київ/Харків/Запоріжжя + все районы. Источники: ubilling + tryvoha с авто-failover (районы: tryvoha, при недоступности — тревога области).</div></div>
 <div class="form-group"><label for="check_interval">Период опроса (сек, 10–3600)</label>
 <input id="check_interval" name="check_interval" type="number" min="10" max="3600" required value="{{INTERVAL}}"/>
 <div class="hint">Рекомендуется 30–60 сек</div></div>
+<div style="margin-top:18px"><button class="btn btn-primary" type="submit">Сохранить</button></div>
 </div></div>
 <div class="section panel panel2"><div class="section-header"><div class="section-title">Настройки WiFi</div></div>
 <div class="card">
@@ -148,4 +150,19 @@ footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim)}
 </div></div>
 </div></div>
 <footer><div>ESP32 Alert Monitor • {{NETMODE}}</div><div class="ip-tag">http://{{IPURL}}/</div></footer>
+<script>
+(function(){
+var v=document.getElementById('region'),h=document.getElementById('region_slug'),l=document.getElementById('region-list');
+function norm(s){return (s||'').toLowerCase();}
+function sync(){
+  if(!v||!h||!l)return;
+  var t=norm(v.value),opts=l.options;
+  for(var i=0;i<opts.length;i++){
+    var o=opts[i],lb=norm(o.label||o.getAttribute('label')||'');
+    if(lb===t||norm(o.value)===t){h.value=o.value;break;}
+  }
+}
+if(v){v.addEventListener('input',sync);if(v.form)v.form.addEventListener('submit',sync);sync();}
+})();
+</script>
 </body></html>
