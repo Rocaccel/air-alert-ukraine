@@ -10,6 +10,30 @@ ALLOWED = (
 MAX_BUNDLE = 300 * 1024
 MAX_SINGLE = 100 * 1024
 BAK_DIR = "bak"
+# имена файлов, для которых бэкап НЕ удался при последнем unpack_tar_gz
+# (веб-ответ показывает предупреждение, иначе откат был бы неожиданным)
+LAST_BAK_FAIL = []
+
+def _note_bak_fail(name):
+    LAST_BAK_FAIL.append(name)
+    try:
+        import logbuf
+        logbuf.log("ota", "backup FAIL " + name)
+    except Exception:
+        pass
+
+def _copy(src_path, dst_path, chunk=1024):
+    """Потоковая копия чанками: в RAM только один чанк.
+    Цельное чтение файла (f.read()) падало на фрагментированной куче
+    для крупных файлов (alerts.py/web.py) — бэкап молча не создавался."""
+    with open(src_path, "rb") as f:
+        with open(dst_path, "wb") as out:
+            while True:
+                ch = f.read(chunk)
+                if not ch:
+                    break
+                out.write(ch)
+                gc.collect()
 
 def _mkdir(d):
     try:
@@ -39,13 +63,18 @@ def backup(name):
     src = safe_name(name)
     if not src:
         return False
+    dst = BAK_DIR + "/" + src
     try:
-        with open(src, "rb") as f:
-            data = f.read()
-        with open(BAK_DIR + "/" + src, "wb") as f:
-            f.write(data)
+        _copy(src, dst)
         return True
     except Exception:
+        # полузаписанный бэкап опаснее его отсутствия: откат восстановил бы мусор
+        try:
+            import os
+            os.remove(dst)
+        except Exception:
+            pass
+        _note_bak_fail(src)
         return False
 
 def write_file(name, data):
@@ -63,6 +92,7 @@ def free_bytes():
 
 def unpack_tar_gz(tmp_path):
     """Распаковывает firmware.tar.gz в корень. Возвращает список записанных файлов."""
+    LAST_BAK_FAIL[:] = []
     gc.collect()
     # utarfile.py вендорен в прошивке (micropython-lib, MIT) — отдельного
     # `mip install` на устройстве не требуется
@@ -214,21 +244,37 @@ def download_url(url, target_path, limit):
             pass
 
 def rollback():
+    """Возвращает (restored, failed).
+    Стейджинг: bak/x -> корень x.rbt -> remove(x) -> rename. Корневой файл
+    не остаётся обрезанным при сбое: до rename он остаётся старым целым."""
     import os
     restored = []
+    failed = []
     try:
         files = os.listdir(BAK_DIR)
     except Exception:
-        return restored
+        return restored, failed
     for name in files:
         if not is_allowed(name):
             continue
+        tmp = name + ".rbt"
         try:
-            with open(BAK_DIR + "/" + name, "rb") as f:
-                data = f.read()
-            with open(name, "wb") as f:
-                f.write(data)
+            _copy(BAK_DIR + "/" + name, tmp)
+            try:
+                os.remove(name)
+            except Exception:
+                pass
+            os.rename(tmp, name)
             restored.append(name)
-        except Exception:
-            pass
-    return restored
+        except Exception as e:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+            failed.append(name)
+            try:
+                import logbuf
+                logbuf.log("ota", "rollback FAIL " + name + ": " + str(e)[:40])
+            except Exception:
+                pass
+    return restored, failed

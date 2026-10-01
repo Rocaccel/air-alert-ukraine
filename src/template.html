@@ -47,34 +47,30 @@ input[type=text],input[type=number],input[type=password],input[type=url],select{
 input.has-prefix{padding-left:82px;font-family:ui-monospace,Menlo,monospace;font-size:.9rem}
 input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-glow)}
 .file-picker{background:#0f1522;border:1px dashed var(--border);border-radius:var(--radius-sm);padding:10px;width:100%;color:var(--text-muted);font-size:.82rem;margin-bottom:10px}
-.checkbox-card{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#0f1522;border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;cursor:pointer}
-.ios-wrap{position:relative;display:inline-block;width:64px;height:34px;flex-shrink:0}
-.ios-wrap input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;opacity:0;cursor:pointer;z-index:2}
-.ios-sw{position:absolute;inset:0;border-radius:999px;background:linear-gradient(#c9ced5,#eef0f3);box-shadow:inset 0 2px 5px rgba(0,0,0,.28);transition:background .2s}
-.ios-sw::before{content:"O";position:absolute;left:auto;right:10px;top:50%;transform:translateY(-50%);color:#868c95;font-weight:800;font-size:15px;line-height:1}
-.ios-sw::after{content:"";position:absolute;top:3px;left:3px;width:28px;height:28px;border-radius:50%;background:linear-gradient(#ffffff,#d7dae0);box-shadow:0 2px 5px rgba(0,0,0,.4);transition:transform .2s}
-.ios-wrap input:checked + .ios-sw{background:linear-gradient(#3d9df6,#1667c6)}
-.ios-wrap input:checked + .ios-sw::before{content:"I";left:13px;right:auto;color:#fff}
-.ios-wrap input:checked + .ios-sw::after{transform:translateX(30px)}
-.ios-wrap input:focus-visible + .ios-sw{outline:2px solid var(--accent);outline-offset:2px}
 .btn{display:inline-flex;align-items:center;justify-content:center;width:100%;min-height:48px;padding:12px 18px;font-size:.95rem;font-weight:700;border-radius:var(--radius-sm);border:none;cursor:pointer;text-decoration:none}
 .btn:active{transform:scale(.98)}
 .btn-primary{background:var(--accent);color:#0b0f19}
 .btn-secondary{background:var(--surface-subtle);color:var(--text);border:1px solid var(--border)}
 .btn-danger{background:rgba(239,68,68,.15);color:#fca5a5;border:1px solid rgba(239,68,68,.4)}
 .msg{background:#0f1522;border:1px solid var(--accent);border-radius:8px;padding:10px 12px;margin-bottom:14px;font-weight:700}
-.danger-zone{margin-top:18px;padding-top:16px;border-top:1px dashed #3b2528}
+.danger-zone{margin-top:auto;padding-top:16px;border-top:1px dashed #3b2528}
 .danger-title{font-size:.78rem;font-weight:700;color:#ef4444;text-transform:uppercase;margin-bottom:12px}
-.danger-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.danger-actions{display:grid;grid-template-columns:1fr;gap:10px}
 footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim)}
-.ip-tag{display:inline-block;background:var(--surface);border:1px solid var(--border);padding:3px 8px;border-radius:5px;font-family:ui-monospace,Menlo,monospace;color:var(--text-muted);margin-top:4px}
+.ip-tag{display:inline-block;background:var(--surface);border:1px solid var(--border);padding:3px 8px;border-radius:5px;font-family:ui-monospace,Menlo,monospace;color:var(--text-muted);margin-top:4px;text-decoration:none}
+.ip-tag:hover{color:var(--accent);border-color:var(--accent)}
 .tabs{display:none}
 .tabbar{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px}
 .tabbar label{display:flex;align-items:center;justify-content:center;text-align:center;font-size:.78rem;font-weight:700;line-height:1.3;color:var(--text-muted);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 4px;cursor:pointer;min-height:52px;margin:0}
 #tab1:checked~.tabbar label[for=tab1],#tab2:checked~.tabbar label[for=tab2],#tab3:checked~.tabbar label[for=tab3]{color:var(--accent);border-color:var(--accent)}
-.panel{display:none}
-#tab1:checked~form .panel1,#tab2:checked~form .panel2{display:block}
-#tab3:checked~.panel3{display:block}
+.panel{visibility:hidden}
+.tabpanels{display:grid}
+.tabpanels>form{display:grid}
+.tabpanels>*,.tabpanels>form>*{grid-area:1/1}
+.tabpanels .section{display:flex;flex-direction:column}
+.tabpanels .card{flex:1;display:flex;flex-direction:column}
+.card-actions{margin-top:auto;padding-top:18px}
+#tab1:checked~.tabpanels .panel1,#tab2:checked~.tabpanels .panel2,#tab3:checked~.tabpanels .panel3{visibility:visible}
 @media(min-width:580px){.telemetry-grid{grid-template-columns:repeat(4,1fr)}}
 </style>
 </head>
@@ -101,19 +97,20 @@ footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim)}
 <input class="tabs" id="tab1" name="tabs" type="radio" checked/>
 <input class="tabs" id="tab2" name="tabs" type="radio"/>
 <input class="tabs" id="tab3" name="tabs" type="radio"/>
-<div class="tabbar"><label for="tab1">Регион и проверка</label><label for="tab2">Настройки WiFi</label><label for="tab3">Автоматическое обновление</label></div>
+<div class="tabbar"><label for="tab1">Регион и проверка</label><label for="tab2">Настройки WiFi</label><label for="tab3">Обновление прошивки</label></div>
+<div class="tabpanels">
 <form action="/save" method="POST">
 <div class="section panel panel1"><div class="section-header"><div class="section-title">Регион и проверка</div></div>
 <div class="card">
-<div class="form-group"><label for="region">Регион мониторинга тревоги (печать для поиска)</label>
+<div class="form-group"><label for="region">Регион мониторинга тревоги</label>
 <input id="region" name="region_label" type="text" list="region-list" value="{{REGION}}" placeholder="Одеська..." autocomplete="off"/>
 <input id="region_slug" name="region" type="hidden" value="{{REGION_SLUG}}"/>
 <datalist id="region-list">{{REGION_OPTIONS}}</datalist>
-<div class="hint">Области + м.Київ/Харків/Запоріжжя + все районы. Источники: ubilling + tryvoha с авто-failover (районы: tryvoha, при недоступности — тревога области).</div></div>
+<div class="hint">Области + м.Київ/Харків/Запоріжжя + все районы.</div></div>
 <div class="form-group"><label for="check_interval">Период опроса (сек, 10–3600)</label>
 <input id="check_interval" name="check_interval" type="number" min="10" max="3600" required value="{{INTERVAL}}"/>
 <div class="hint">Рекомендуется 30–60 сек</div></div>
-<div style="margin-top:18px"><button class="btn btn-primary" type="submit">Сохранить</button></div>
+<div class="card-actions"><button class="btn btn-primary" type="submit">Сохранить</button></div>
 </div></div>
 <div class="section panel panel2"><div class="section-header"><div class="section-title">Настройки WiFi</div></div>
 <div class="card">
@@ -121,35 +118,24 @@ footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim)}
 <div class="form-group"><label for="wifi_ssid">Имя сети WiFi. (SSID)</label><input id="wifi_ssid" name="wifi_ssid" type="text" value="{{WIFI_SSID}}"/></div>
 <div class="form-group"><label for="wifi_pass">Пароль сети WiFi</label><input id="wifi_pass" name="wifi_pass" type="password" value="{{WIFI_PASS}}"/></div>
 </div>
-<div class="form-row" style="margin-top:14px">
-<div class="form-group"><label class="checkbox-card"><span>Включить автоматическое обновление</span><span class="ios-wrap"><input name="ota_enabled" type="checkbox" value="1" {{OTA_CHECKED}}/><span class="ios-sw"></span></span></label>
-</div>
-</div>
-<div style="margin-top:18px"><button class="btn btn-primary" type="submit">Сохранить</button></div>
+<div class="card-actions"><button class="btn btn-primary" type="submit">Сохранить</button></div>
 </div></div>
 </form>
-<div class="section panel panel3"><div class="section-header"><div class="section-title">Автоматическое обновление</div></div>
+<div class="section panel panel3"><div class="section-header"><div class="section-title">Обновление прошивки</div></div>
 <div class="card"><div class="ota-grid">
-<div class="subcard"><div class="subcard-title">Полный архив .tar.gz</div>
-<div class="subcard-desc">Соберите через pack.bat, залейте одним файлом. config.json не затирается.</div>
+<div class="subcard"><div class="subcard-title">Архив с прошивкой .tar.gz</div>
+<div class="subcard-desc">Настройки сохраняются</div>
 <form action="/ota-bundle" enctype="multipart/form-data" method="POST">
 <input class="file-picker" name="file" type="file" accept=".tar.gz,.tgz" required/>
 <button class="btn btn-secondary" type="submit">Загрузить и распаковать прошивку</button></form></div>
-<div class="subcard"><div class="subcard-title">Скачать по URL</div>
-<div class="subcard-desc">ESP сам скачает файл или .tar.gz с публичного URL (GitHub raw, релиз).</div>
-<form action="/ota-url" method="POST">
-<div class="form-group"><label for="ota_url">URL файла</label><input id="ota_url" name="url" type="url" required placeholder="https://.../firmware.tar.gz"/></div>
-<div class="form-group"><label for="ota_target">Target (для одиночного .py)</label><input id="ota_target" name="target" type="text" value="main.py"/></div>
-<div class="form-group"><label class="checkbox-card"><span>Это .tar.gz пакет</span><span class="ios-wrap"><input name="bundle" type="checkbox" value="1" checked/><span class="ios-sw"></span></span></label></div>
-<button class="btn btn-secondary" type="submit">Загрузить автоматическое обновление прошивки</button></form></div>
 </div>
 <div class="danger-zone"><div class="danger-title">Опасная зона</div>
 <div class="danger-actions">
-<form action="/ota-rollback" method="POST" onsubmit="return confirm('Откатить из /bak?')"><button class="btn btn-danger" type="submit">Откат из /bak</button></form>
 <form action="/reboot" method="POST" onsubmit="return confirm('Перезагрузить ESP32?')"><button class="btn btn-danger" type="submit">Перезагрузить</button></form>
 </div></div>
 </div></div>
-<footer><div>ESP32 Alert Monitor • {{NETMODE}}</div><div class="ip-tag">http://{{IPURL}}/</div></footer>
+</div>
+<footer><div>ESP32 Alert Monitor • {{NETMODE}}</div><a class="ip-tag" href="http://{{IPURL}}/">http://{{IPURL}}/</a></footer>
 <script>
 (function(){
 var v=document.getElementById('region'),h=document.getElementById('region_slug'),l=document.getElementById('region-list');

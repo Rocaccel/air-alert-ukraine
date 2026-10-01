@@ -3,8 +3,8 @@
 # Зачем: DeflateIO на ESP выделяет окно целиком при создании. Окно 32КБ
 # (wbits=15, обычный tar/gzip) -> "memory allocation failed, allocating 32768"
 # на фрагментированной куче. Окно 512Б распаковывается всегда.
-# Распаковщик: ota.unpack_tar_gz (deflate, GZIP, wbits 9), прошивка 2.1.7+.
-# Банды, собранные обычным tar -czf / python w:gz (wbits=15), 2.1.7+ НЕ примет.
+# Распаковщик: ota.unpack_tar_gz (deflate, GZIP, wbits 9).
+# Бандлы, собранные обычным tar -czf / python gzip (wbits=15), не примутся.
 import binascii
 import io
 import os

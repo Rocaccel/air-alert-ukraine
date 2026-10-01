@@ -36,6 +36,14 @@ def _ota():
         _ota_mod = _m
     return _ota_mod
 
+def _bak_note():
+    # видимое предупреждение: если бэкап не удался, откат вернёт старые файлы
+    # не всех файлов — молчать об этом нельзя (раньше падало тихо из-за OOM)
+    fails = _ota().LAST_BAK_FAIL
+    if not fails:
+        return ""
+    return " | бэкап не удался: " + ",".join(fails)
+
 TPL_PATH = "template.html"
 
 def _urldecode(s):
@@ -143,7 +151,6 @@ def render_tokens(cfg, state, msg=""):
         "{{INTERVAL}}": _esc(cfg.get("check_interval", 60)),
         "{{WIFI_SSID}}": _esc(cfg.get("wifi_ssid", "")),
         "{{WIFI_PASS}}": _esc(cfg.get("wifi_pass", "")),
-        "{{OTA_CHECKED}}": "checked" if cfg.get("ota_enabled") else "",
         "{{MSG}}": ('<div class="msg">' + _esc(msg) + "</div>") if msg else "",
     }
     return t
@@ -358,20 +365,19 @@ def poll(srv, cfg, state, config_store, set_led=None):
                 pass
             cfg["wifi_ssid"] = form.get("wifi_ssid", cfg.get("wifi_ssid", ""))
             cfg["wifi_pass"] = form.get("wifi_pass", cfg.get("wifi_pass", ""))
-            cfg["ota_enabled"] = ("ota_enabled" in form)
             wifi_changed = (cfg.get("wifi_ssid", "") != old_ssid
                             or cfg.get("wifi_pass", "") != old_pass)
             try:
-                config_store.save(cfg)
+                if not config_store.save(cfg):
+                    raise RuntimeError("запись config.json не удалась")
                 if wifi_changed:
                     msg = "Сохранено, перезагрузка для нового WiFi..."
                 else:
                     msg = "Сохранено"
                 if region_warn:
                     msg += " (регион не распознан — оставлен прежний)"
-                logbuf.log("web", "save region=%s interval=%s ota=%s wifi_changed=%s" % (
-                    cfg.get("region"), cfg.get("check_interval"),
-                    cfg.get("ota_enabled"), wifi_changed))
+                logbuf.log("web", "save region=%s interval=%s wifi_changed=%s" % (
+                    cfg.get("region"), cfg.get("check_interval"), wifi_changed))
             except Exception as e:
                 msg = "Ошибка сохранения: " + str(e)
                 wifi_changed = False
@@ -424,19 +430,6 @@ def poll(srv, cfg, state, config_store, set_led=None):
             msg = _handle_url(form, cfg)
             logbuf.log("ota", "url: " + msg[:100])
             _send_template(conn, cfg, state, msg)
-        elif path == "/ota-rollback" and method == "POST":
-            if clen:
-                try:
-                    _d, buf = _recv_exact(conn, buf, min(clen, 2048), 8192)
-                except Exception:
-                    pass
-            if not cfg.get("ota_enabled"):
-                _send_template(conn, cfg, state, "OTA выключено")
-            else:
-                r = _ota().rollback()
-                msg = "Откат: " + (",".join(r) if r else "нечего откатывать")
-                logbuf.log("ota", "rollback: " + msg[:100])
-                _send_template(conn, cfg, state, msg)
         else:
             _send(conn, 404, "text/plain", "not found")
     except Exception as e:
@@ -453,8 +446,6 @@ def poll(srv, cfg, state, config_store, set_led=None):
 
 def _handle_url(form, cfg):
     # v5: только публичные URL, без токенов
-    if not cfg.get("ota_enabled"):
-        return "OTA выключено"
     url = (form.get("url", "") or "").strip()
     if not url.startswith("http"):
         return "Некорректный URL (нужен http/https)"
@@ -470,7 +461,7 @@ def _handle_url(form, cfg):
                 os.remove(tmp)
             except Exception:
                 pass
-            return "Пакет OK: " + ",".join(written) + " — перезагрузите вручную"
+            return "Пакет OK: " + ",".join(written) + " — перезагрузите вручную" + _bak_note()
         except Exception as e:
             return "Ошибка пакета: " + str(e)[:200]
     else:
@@ -479,6 +470,7 @@ def _handle_url(form, cfg):
             return "Target запрещен (разрешены: main.py, web.py, alerts.py, ota.py, config_store.py, boot.py, version.py, hw.py, logbuf.py, template.html)"
         try:
             _ota().download_url(url, "tmp_ota.py", _ota().MAX_SINGLE)
+            _ota().LAST_BAK_FAIL[:] = []  # иначе в сообщении останется список из прошлого бандла
             _ota().backup(target)
             with open("tmp_ota.py", "rb") as f:
                 data = f.read()
@@ -487,17 +479,11 @@ def _handle_url(form, cfg):
                 os.remove("tmp_ota.py")
             except Exception:
                 pass
-            return "Файл OK: " + target + " — перезагрузите вручную"
+            return "Файл OK: " + target + " — перезагрузите вручную" + _bak_note()
         except Exception as e:
             return "Ошибка файла: " + str(e)[:200]
 
 def _handle_multipart(conn, buf, clen, ctype, cfg):
-    if not cfg.get("ota_enabled"):
-        try:
-            _d, buf = _recv_exact(conn, buf, min(clen, 8192), 400 * 1024)
-        except Exception:
-            pass
-        return "OTA выключено"
     if "boundary=" not in ctype:
         return "Нужен multipart"
     b = ctype.split("boundary=")[-1].strip().strip('"')
@@ -595,6 +581,6 @@ def _handle_multipart(conn, buf, clen, ctype, cfg):
             os.remove("tmp_bundle.tar.gz")
         except Exception:
             pass
-        return "Пакет OK: " + ",".join(written) + " — перезагрузите вручную"
+        return "Пакет OK: " + ",".join(written) + " — перезагрузите вручную" + _bak_note()
     except Exception as e:
         return "Ошибка пакета: " + str(e)[:200]
