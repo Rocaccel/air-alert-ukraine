@@ -1,19 +1,31 @@
-"""Источники тревоги БЕЗ Telegram (v2.0): два зашитых легких API по plain HTTP.
-Добавить свои источники нельзя — только эти два с авто-failover.
+"""Источники тревоги БЕЗ Telegram (v3.0): три зашитых API по plain HTTP, без ключей.
 
-1. Ubilling aerialalerts: http://ubilling.net.ua/aerialalerts/
-   без ключей, ~2.5КБ: {"states": {"Одеська область": {"alertnow": bool}}}
-2. Tryvoha: http://tryvoha.online/api/v1/alerts/{slug}
-   без ключей, ~300Б: {"active": bool, "active_anywhere": bool, ...}
-Только RAM, во flash ничего не пишем.
+1. Ubilling (области): http://ubilling.net.ua/aerialalerts/
+   ~4КБ: {"states": {"Одеська область": {"alertnow": bool}}}
+   alertnow поднимается и от тревог в отдельных районах области.
+2. Ubilling raw (районы/города/громады):
+   ?source=aiu&raw  -> alerts.in.ua raw: location_title, finished_at=null
+   ?source=ual&raw  -> ukrainealarm raw: regionName, activeAlerts [...]
+   Тело до ~64КБ -> сканируется потоково (_RawScan), в RAM не копится.
+   Лимит ubilling ~2 rps: между попытками пауза NAP_MS.
+3. Tryvoha: http://tryvoha.online/api/v1/alerts/{slug}
+   с 2026-09 отдает 301 -> https (на ESP нет TLS, падает); запасной
+   только для областей.
+Цепочка юнита: громада/город -> район -> область (один потоковый проход
+по набору имён); при отказе обоих raw-источников область по ubilling
+(тег "ubilling~oblast"). Только RAM, во flash ничего не пишем.
 """
 CHUNK = 2048
 FETCH_DEADLINE_MS = 60000
 SOCK_TIMEOUT = 12
 BODY_LIMIT = 16384
+SCAN_BODY_LIMIT = 262144
 DNS_TTL_MS = 600000
+NAP_MS = 700
 
 UBILL_URL = "http://ubilling.net.ua/aerialalerts/"
+AIU_URL = "http://ubilling.net.ua/aerialalerts/?source=aiu&raw"
+UAL_URL = "http://ubilling.net.ua/aerialalerts/?source=ual&raw"
 TRYVOHA_URL = "http://tryvoha.online/api/v1/alerts/"
 
 # (tryvoha-slug, имя на странице, имя в ubilling | None у районов/городов-громад)
@@ -45,6 +57,7 @@ REGIONS = [
     ("cernivecka-oblast", "Чернівецька область", "Чернівецька область"),
     ("cernigivska-oblast", "Чернігівська область", "Чернігівська область"),
     ("m-zaporizzia-ta-zaporizka-teritorialna-gromada", "м. Запоріжжя", None),
+    ("m-odesa-ta-odeska-teritorialna-gromada", "м. Одеса", None),
     ("m-xarkiv-ta-xarkivska-teritorialna-gromada", "м. Харків", None),
     ("baxmutskii-raion", "Бахмутський район", None),
     ("bastanskii-raion", "Баштанський район", None),
@@ -164,16 +177,26 @@ REGIONS = [
     ("septickii-raion", "Шептицький район", None),
     ("sostkinskii-raion", "Шосткинський район", None),
     ("iavorivskii-raion", "Яворівський район", None),
+    # громады с отдельными тревогами (0.4.0: входят в цепочку aiu/ual)
+    ("bilenkivska-teritorialna-gromada", "Біленьківська територіальна громада", None),
+    ("cervonogrigorivska-teritorialna-gromada", "Червоногригорівська територіальна громада", None),
+    ("lipecka-teritorialna-gromada", "Липецька територіальна громада", None),
+    ("m-kramatorsk-ta-kramatorska-teritorialna-gromada", "м. Краматорськ та Краматорська територіальна громада", None),
+    ("m-marganec-ta-marganecka-teritorialna-gromada", "м. Марганець та Марганецька територіальна громада", None),
+    ("m-nikopol-ta-nikopolska-teritorialna-gromada", "м. Нікополь та Нікопольська територіальна громада", None),
+    ("m-xerson-ta-xersonska-teritorialna-gromada", "м. Херсон та Херсонська територіальна громада", None),
+    ("pokrovska-teritorialna-gromada", "Покровська територіальна громада", None),
+    ("vovcanska-teritorialna-gromada", "Вовчанська територіальна громада", None),
 ]
 DEFAULT_REGION = "odeska"
 
-# Район/громада -> родительская область (tryvoha-slug). Нужно для fallback:
-# с 2026-09 tryvoha отдает plain HTTP 301 на https (на ESP нет TLS), поэтому
-# при недоступности tryvoha район показывает тревогу своей ОБЛАСТИ по ubilling
-# (источник "ubilling~oblast" — аппроксимация, см. check()).
-# Часть сверена с живым tryvoha /api/v1/alerts (поле oblast_slug), остальное —
-# райцентр -> область по админ. делению 2020 (Первомайский район — только
-# Николаевская обл.: Харьковский упразднен в 2020).
+# Район/громада/город -> родитель (slug). Нужен check() для цепочки имён:
+# юнит -> район -> область проверяются по raw-источникам aiu/ual за один
+# проход, а при отказе обоих raw-источников область тянется по ubilling
+# (тег "ubilling~oblast" — грубое приближение).
+# Районы сверены с живым tryvoha /api/v1/alerts (поле oblast_slug), остальное —
+# админ. деление 2020; громады 0.4.0 — по данным aiu (location_raion) и
+# KATOTTG (Біленьківська -> Запорізький район).
 PARENT = {
     # vinnicka-oblast
     "gaisinskii-raion": "vinnicka-oblast",
@@ -195,6 +218,10 @@ PARENT = {
     "pavlogradskii-raion": "dnipropetrovska",
     "samarivskii-raion": "dnipropetrovska",
     "sinelnikivskii-raion": "dnipropetrovska",
+    "cervonogrigorivska-teritorialna-gromada": "nikopolskii-raion",
+    "pokrovska-teritorialna-gromada": "nikopolskii-raion",
+    "m-marganec-ta-marganecka-teritorialna-gromada": "nikopolskii-raion",
+    "m-nikopol-ta-nikopolska-teritorialna-gromada": "nikopolskii-raion",
     # donecka-oblast
     "baxmutskii-raion": "donecka-oblast",
     "doneckii-raion": "donecka-oblast",
@@ -204,6 +231,7 @@ PARENT = {
     "mariupolskii-raion": "donecka-oblast",
     "pokrovskii-raion": "donecka-oblast",
     "volnovaskii-raion": "donecka-oblast",
+    "m-kramatorsk-ta-kramatorska-teritorialna-gromada": "kramatorskii-raion",
     # zitomirska-oblast
     "berdicivskii-raion": "zitomirska-oblast",
     "korostenskii-raion": "zitomirska-oblast",
@@ -223,6 +251,7 @@ PARENT = {
     "vasilivskii-raion": "zaporizka-oblast",
     "zaporizkii-raion": "zaporizka-oblast",
     "m-zaporizzia-ta-zaporizka-teritorialna-gromada": "zaporizka-oblast",
+    "bilenkivska-teritorialna-gromada": "zaporizkii-raion",
     # ivano-frankivska-oblast
     "ivano-frankivskii-raion": "ivano-frankivska-oblast",
     "kaluskii-raion": "ivano-frankivska-oblast",
@@ -264,6 +293,7 @@ PARENT = {
     "odeskii-raion": "odeska",
     "podilskii-raion": "odeska",
     "rozdilnianskii-raion": "odeska",
+    "m-odesa-ta-odeska-teritorialna-gromada": "odeskii-raion",
     # poltavska-oblast
     "kremencuckii-raion": "poltavska-oblast",
     "lubenskii-raion": "poltavska-oblast",
@@ -293,12 +323,15 @@ PARENT = {
     "lozivskii-raion": "xarkivska-oblast",
     "xarkivskii-raion": "xarkivska-oblast",
     "m-xarkiv-ta-xarkivska-teritorialna-gromada": "xarkivska-oblast",
+    "lipecka-teritorialna-gromada": "xarkivskii-raion",
+    "vovcanska-teritorialna-gromada": "cuguyivskii-raion",
     # xersonska-oblast
     "berislavskii-raion": "xersonska-oblast",
     "geniceskii-raion": "xersonska-oblast",
     "kaxovskii-raion": "xersonska-oblast",
     "skadovskii-raion": "xersonska-oblast",
     "xersonskii-raion": "xersonska-oblast",
+    "m-xerson-ta-xersonska-teritorialna-gromada": "xersonskii-raion",
     # xmelnycka-oblast
     "kamianec-podilskii-raion": "xmelnycka-oblast",
     "sepetivskii-raion": "xmelnycka-oblast",
@@ -337,6 +370,66 @@ def valid_region(slug):
         if s == slug:
             return True
     return False
+
+# Имена локаций в aiu/ual, отличающиеся от label в REGIONS. aiu пишет
+# громады коротко ("Нікопольська територіальна громада"), города — отдельно
+# ("м. Нікополь"); ual — полной формой ("м. Нікополь та ..."); в aiu у
+# city-записи общий префикс с hromada. Значение — список полных имён.
+ALIASES = {
+    "m-odesa-ta-odeska-teritorialna-gromada": [
+        "Одеська територіальна громада",
+        "м. Одеса та Одеська територіальна громада",
+    ],
+    "m-zaporizzia-ta-zaporizka-teritorialna-gromada": [
+        "Запорізька територіальна громада",
+        "м. Запоріжжя та Запорізька територіальна громада",
+    ],
+    "m-xarkiv-ta-xarkivska-teritorialna-gromada": [
+        "Харківська територіальна громада",
+        "м. Харків та Харківська територіальна громада",
+    ],
+    "m-nikopol-ta-nikopolska-teritorialna-gromada": [
+        "Нікопольська територіальна громада", "м. Нікополь",
+    ],
+    "m-marganec-ta-marganecka-teritorialna-gromada": [
+        "Марганецька територіальна громада", "м. Марганець",
+    ],
+    "m-xerson-ta-xersonska-teritorialna-gromada": [
+        "Херсонська територіальна громада", "м. Херсон",
+    ],
+    "m-kramatorsk-ta-kramatorska-teritorialna-gromada": [
+        "Краматорська територіальна громада", "м. Краматорськ",
+    ],
+}
+
+def _chain_slugs(slug):
+    """slug -> [юнит, район, ..., область] по PARENT (макс. 4 звена)."""
+    out = [slug]
+    s = slug
+    for _i in range(3):
+        s = PARENT.get(s)
+        if s is None:
+            break
+        out.append(s)
+    return out
+
+def _match_names(slug):
+    """Все имена источников цепочки slug (без дублей, порядок сохранён)."""
+    out = []
+    for s in _chain_slugs(slug):
+        for n in _names_of(s):
+            if n not in out:
+                out.append(n)
+    return out
+
+def _names_of(s):
+    out = [region_name(s)]
+    ex = ALIASES.get(s)
+    if ex:
+        for n in ex:
+            if n not in out:
+                out.append(n)
+    return out
 
 def _now_ms():
     try:
@@ -446,8 +539,10 @@ def _split_http(url):
         raise RuntimeError("bad host")
     return host, port, path
 
-def http_get(url, on_post=None):
-    """GET по plain HTTP, тело целиком (лимит BODY_LIMIT). Возвращает bytes."""
+def http_get(url, on_post=None, sink=None):
+    """GET по plain HTTP, тело целиком (лимит BODY_LIMIT). Возвращает bytes.
+    sink(bytes) — потоковый режим (лимит SCAN_BODY_LIMIT, тело не копится);
+    исключение _ScanDone из sink обрывает чтение (ранний hit сканера)."""
     try:
         import gc
         gc.collect()
@@ -498,19 +593,34 @@ def http_get(url, on_post=None):
             status = ""
         if " 200" not in status:
             raise RuntimeError("api " + hp + " http " + status[:60])
-        body = raw[hb + 4:]
-        while True:
-            if _expired(t0):
-                raise RuntimeError("api " + hp + " deadline(body)")
-            try:
-                ch = s.recv(CHUNK)
-            except Exception as e:
-                raise RuntimeError("api " + hp + " recv: " + str(e)[:60])
-            if not ch:
-                break
-            body += ch
-            if len(body) > BODY_LIMIT:
-                raise RuntimeError("api " + hp + " body too big")
+        limit = SCAN_BODY_LIMIT if sink is not None else BODY_LIMIT
+        got = 0
+        try:
+            if sink is not None:
+                part = raw[hb + 4:]
+                if part:
+                    sink(part)
+            body = b"" if sink is not None else raw[hb + 4:]
+            while True:
+                if _expired(t0):
+                    raise RuntimeError("api " + hp + " deadline(body)")
+                try:
+                    ch = s.recv(CHUNK)
+                except Exception as e:
+                    raise RuntimeError("api " + hp + " recv: " + str(e)[:60])
+                if not ch:
+                    break
+                got += len(ch)
+                if got > limit:
+                    raise RuntimeError("api " + hp + " body too big")
+                if sink is not None:
+                    sink(ch)
+                else:
+                    body += ch
+                    if len(body) > BODY_LIMIT:
+                        raise RuntimeError("api " + hp + " body too big")
+        except _ScanDone:
+            return b""
         return body
     finally:
         try:
@@ -568,10 +678,248 @@ def fetch_tryvoha(slug):
     except Exception:
         raise RuntimeError("tryvoha bad format")
 
+class _ScanDone(Exception):
+    pass
+
+# Известные ключи элементов raw (b"raw" — массив-обёртка envelope).
+_K_TIT = b"location_title"
+_K_FIN = b"finished_at"
+_K_REG = b"regionName"
+_K_ALA = b"activeAlerts"
+_K_RAW = b"raw"
+
+class _RawScan:
+    """Потоковый поиск активной тревоги в raw ubilling (aiu/ual), без копия тела.
+    mode 0 = aiu: элемент raw = {"location_title", "finished_at": null, ...};
+      hit, если имя в наборе и finished_at не задан (есть строка = тревога
+      закрыта). alert_type не проверяется — любой активный тип активен.
+    mode 1 = ual: элемент raw = {"regionName", "activeAlerts": [...], ...};
+      hit, если имя в наборе и activeAlerts непуст.
+    Имена цепочки (юнит+район+область) в одном наборе — срабатывает любое
+    звено. Тело чанков только сканируется, в RAM остаётся ~0.5КБ буферов."""
+
+    def __init__(self, names, mode):
+        self.m = mode
+        self.ts = set()
+        for n in names:
+            try:
+                self.ts.add(n.encode("utf-8"))
+            except Exception:
+                pass
+        self.depth = 0
+        self.raw_depth = -1
+        self.elem_depth = -1
+        self.in_str = False
+        self.esc = 0        # 0=нет, 1=после \, 2=\uXXXX (собираем hex)
+        self.ubuf = b""
+        self.s_key = False   # текущая строка = ключ объекта
+        self.after_colon = False
+        self.key = b""
+        self.val = b""
+        self.tok = b""
+        self.cand = False
+        self.fin = 0
+        self.watch = 0       # ual: 1=ждём содержимое '[' activeAlerts
+        self.hit = False
+
+    def feed(self, chunk):
+        for i in range(len(chunk)):
+            c = chunk[i]
+            if self.in_str:
+                if self.esc == 1:
+                    self.esc = 0
+                    if c == 117:        # 'u' -> \uXXXX
+                        self.esc = 2
+                        self.ubuf = b""
+                        continue
+                    if c == 110:
+                        c = 10
+                    elif c == 116:
+                        c = 9
+                    elif c == 114:
+                        c = 13
+                    self._append(c)
+                    continue
+                if self.esc == 2:
+                    if (48 <= c <= 57) or (65 <= c <= 70) or (97 <= c <= 102):
+                        self.ubuf += bytes((c,))
+                        if len(self.ubuf) == 4:
+                            self.esc = 0
+                            self._append_u()
+                        continue
+                    self.esc = 0        # мусор после \u — не значимо
+                    continue
+                if c == 92:             # backslash внутри строки
+                    self.esc = 1
+                    continue
+                if c == 34:             # закрытие строки
+                    self.in_str = False
+                    self._end_str()
+                    continue
+                self._append(c)
+                continue
+            if self.watch == 1 and c not in (9, 10, 13, 32):
+                if c == 123 and self.cand:   # объект в activeAlerts -> непуст
+                    self.hit = True
+                self.watch = 0
+            if c == 34:            # открытие строки
+                self.in_str = True
+                self.esc = 0
+                self.s_key = not self.after_colon
+                if self.s_key:
+                    self.key = b""
+                else:
+                    self.val = b""
+                continue
+            if c == 58:            # ':'
+                self.after_colon = True
+                continue
+            if c in (44, 93, 125): # ',' ']' '}'
+                if self.tok:
+                    self._end_bare()
+                if c == 44:
+                    self.after_colon = False
+                    self.key = b""
+                    continue
+                if c == 93:        # ']'
+                    if self.watch == 1:
+                        self.watch = 0  # пустой activeAlerts
+                    self.depth -= 1
+                    self.after_colon = False
+                    self.key = b""
+                    continue
+                # '}'
+                if self.elem_depth > 0 and self.depth == self.elem_depth:
+                    if self.m == 0 and self.cand and self.fin != 2:
+                        self.hit = True
+                    self.elem_depth = -1
+                    self.cand = False
+                    self.fin = 0
+                self.depth -= 1
+                self.after_colon = False
+                self.key = b""
+                continue
+            if c == 123:           # '{'
+                if self.tok:
+                    self._end_bare()
+                self.depth += 1
+                self.after_colon = False
+                self.key = b""
+                if self.raw_depth > 0 and self.depth == self.raw_depth + 1:
+                    self.elem_depth = self.depth
+                    self.cand = False
+                    self.fin = 0
+                continue
+            if c == 91:            # '['
+                if self.tok:
+                    self._end_bare()
+                self.depth += 1
+                self.after_colon = False
+                if self.key == _K_RAW:
+                    self.raw_depth = self.depth
+                elif self.m == 1 and self.key == _K_ALA:
+                    self.watch = 1
+                self.key = b""
+                continue
+            if 33 <= c < 127:      # голый токен (null/число/true/false)
+                if len(self.tok) < 16:
+                    self.tok += bytes((c,))
+                continue
+            if c in (9, 10, 13, 32):  # пробельный символ
+                if self.tok:
+                    self._end_bare()
+                continue
+            if self.tok:
+                self._end_bare()
+            # прочие многобайтовые байты вне строки не значимы
+
+    def _append_u(self):
+        try:
+            cp = int(self.ubuf, 16)
+            if cp:
+                if 0xD800 <= cp <= 0xDFFF:
+                    raise ValueError
+                self._append_bytes(chr(cp).encode("utf-8"))
+        except Exception:
+            self._append_bytes(b"?")
+        self.ubuf = b""
+
+    def _append_bytes(self, b):
+        if self.s_key:
+            for j in range(len(b)):
+                if len(self.key) < 32:
+                    self.key += bytes((b[j],))
+            return
+        for j in range(len(b)):
+            if len(self.val) < 192:
+                self.val += bytes((b[j],))
+
+    def _append(self, c):
+        if self.s_key:
+            if len(self.key) < 32:
+                self.key += bytes((c,))
+            return True
+        if len(self.val) < 192:
+            self.val += bytes((c,))
+        return False
+
+    def _end_str(self):
+        if self.s_key:
+            self.s_key = False
+            return
+        k, v = self.key, self.val
+        self.after_colon = False
+        self.key = b""
+        if self.m == 0:
+            if k == _K_TIT and self.elem_depth > 0 and v in self.ts:
+                self.cand = True
+            elif k == _K_FIN:
+                self.fin = 2
+        elif k == _K_REG and self.elem_depth > 0 and v in self.ts:
+            self.cand = True
+
+    def _end_bare(self):
+        t = self.tok
+        self.tok = b""
+        if self.m == 0 and self.key == _K_FIN:
+            self.fin = 1 if t == b"null" else 2
+        self.after_colon = False
+        self.key = b""
+
+    def result(self):
+        if self.hit:
+            return True
+        if self.raw_depth > 0:
+            return False
+        raise RuntimeError("raw bad format")
+
+def http_scan(url, sc):
+    """Скачивает raw и сканирует сканером sc, обрывая соединение на hit."""
+    def sink(ch):
+        sc.feed(ch)
+        if sc.hit:
+            raise _ScanDone()
+    try:
+        http_get(url, sink=sink)
+    except _ScanDone:
+        pass
+    return sc.result()
+
+def _nap(ms):
+    try:
+        import time as _t
+        try:
+            _t.sleep_ms(ms)
+        except AttributeError:
+            _t.sleep(ms / 1000)
+    except Exception:
+        pass
+
 def check(slug):
     """(alert_bool, source). Области: ubilling -> tryvoha.
-    Районы/громады: tryvoha -> fallback на тревогу области ("ubilling~oblast").
-    Не пишет во flash."""
+    Районы/города/громады: aiu raw -> ual raw -> область по ubilling
+    ("ubilling~oblast"); имена цепочки юнит->район->область в одном
+    потоковом проходе. Не пишет во flash."""
     if not valid_region(slug):
         slug = DEFAULT_REGION
     last_e = RuntimeError("no source")
@@ -584,24 +932,36 @@ def check(slug):
             last_e = RuntimeError("ubilling no region " + slug)
         except Exception as e:
             last_e = e
-    try:
-        return bool(fetch_tryvoha(slug)), "tryvoha"
-    except Exception as e:
-        last_e = e
-    if name is None:
-        # своей строки в ubilling нет: аппроксимация областью
         try:
-            ps = PARENT.get(slug)
-            pname = ubilling_name(ps) if ps else None
-            if pname is not None:
-                states = fetch_ubilling()
-                if pname in states:
-                    return bool(states[pname]), "ubilling~oblast"
-                last_e = RuntimeError("ubilling no parent " + slug)
-            else:
-                last_e = RuntimeError("no parent " + slug)
+            return bool(fetch_tryvoha(slug)), "tryvoha"
         except Exception as e:
             last_e = e
+        raise last_e
+    names = _match_names(slug)
+    chain = _chain_slugs(slug)
+    for url, mode, tag in ((AIU_URL, 0, "aiu"), (UAL_URL, 1, "ual")):
+        try:
+            sc = _RawScan(names, mode)
+            http_scan(url, sc)
+            return sc.result(), tag
+        except Exception as e:
+            last_e = e
+        _nap(NAP_MS)  # ubilling ~2 rps: щадим между сырьём и parent-запросом
+    try:
+        pname = None
+        for s in chain:
+            u = ubilling_name(s)
+            if u is not None:
+                pname = u
+                break
+        if pname is None:
+            raise RuntimeError("no parent " + slug)
+        states = fetch_ubilling()
+        if pname in states:
+            return bool(states[pname]), "ubilling~oblast"
+        raise RuntimeError("ubilling no parent " + slug)
+    except Exception as e:
+        last_e = e
     try:
         import gc as _ggc
         _ggc.collect()

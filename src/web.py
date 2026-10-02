@@ -1,6 +1,6 @@
 # web.py — RU-панель из template.html (двухпроходный чанковый рендер, токены {{...}}).
 # Страница ~13КБ никогда не материализуется целиком: проход 1 считает длину тела,
-# проход 2 шлет чанками по 512Б. {{REGION_OPTIONS}} (~145 опций) шлется поштучно.
+# проход 2 шлет чанками по 512Б. {{REGION_OPTIONS}} (~155 опций) шлется поштучно.
 # Причина: при 85КБ свободного heap нет непрерывных 13КБ (фрагментация) — было OOM.
 # /upload одиночного .py УБРАН по решению v5 (только бандл + URL публичные).
 import gc
@@ -467,7 +467,7 @@ def _handle_url(form, cfg):
     else:
         target = _ota().safe_name(form.get("target", "main.py"))
         if not _ota().is_allowed(target):
-            return "Target запрещен (разрешены: main.py, web.py, alerts.py, ota.py, config_store.py, boot.py, version.py, hw.py, logbuf.py, template.html)"
+            return "Target запрещен (разрешены: пакет или файл: main.py, web.py, alerts.py, ota.py, config_store.py, boot.py, version.py, hw.py, logbuf.py, template.html, web.mpy, alerts.mpy)"
         try:
             _ota().download_url(url, "tmp_ota.py", _ota().MAX_SINGLE)
             _ota().LAST_BAK_FAIL[:] = []  # иначе в сообщении останется список из прошлого бандла
@@ -479,7 +479,15 @@ def _handle_url(form, cfg):
                 os.remove("tmp_ota.py")
             except Exception:
                 pass
-            return "Файл OK: " + target + " — перезагрузите вручную" + _bak_note()
+            msg = "Файл OK: " + target + " — перезагрузите вручную"
+            if target.endswith(".py") and target in ("web.py", "alerts.py"):
+                # у .py приоритет над .mpy: после ребута устройство скомпилирует
+                # файл само (66КБ подряд после WiFi) — пик рвёт кучу и сеть.
+                msg += ("; ВНИМАНИЕ: " + target + " получит приоритет над "
+                        + target[:-3] + ".mpy — при ребуте будет on-device "
+                        "компиляция (риск: плата перестанет отвечать). "
+                        "Предпочтительнее залить " + target[:-3] + ".mpy")
+            return msg + _bak_note()
         except Exception as e:
             return "Ошибка файла: " + str(e)[:200]
 

@@ -5,6 +5,11 @@ ALLOWED = (
     "main.py", "web.py", "alerts.py", "ota.py",
     "config_store.py", "boot.py", "version.py",
     "hw.py", "logbuf.py", "template.html", "utarfile.py",
+    # предкомпилированный байткод: .mpy используется ТОЛЬКО когда .py
+    # отсутствует (у .py приоритет!). On-device компиляция web.py/alerts.py
+    # после WiFi-инициализации рвёт кучу -> lwIP без mbuf -> сеть мертва,
+    # поэтому эти .py на устройство не кладут, а едут .mpy.
+    "web.mpy", "alerts.mpy",
 )
 # config.json и last-файлы специально НЕ обновляются пакетом
 MAX_BUNDLE = 300 * 1024

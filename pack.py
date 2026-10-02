@@ -8,17 +8,50 @@
 import binascii
 import io
 import os
+import shutil
 import struct
+import subprocess
 import sys
 import tarfile
 import zlib
 
-FILES = ['boot.py', 'main.py', 'config_store.py', 'alerts.py', 'web.py',
+# web.py/alerts.py в бандл НЕ входят: на устройстве едут только их .mpy.
+# У .py приоритет над .mpy — их наличие на плате включает on-device
+# компиляцию после WiFi-инициализации: пик аллокаций рвёт кучу ->
+# lwIP без mbuf -> плата не отвечает на ping (эмпирически 0.4.0).
+# Исходники .py остаются в src/ и в zip релиза.
+FILES = ['boot.py', 'main.py', 'config_store.py',
          'ota.py', 'version.py', 'hw.py', 'logbuf.py', 'template.html',
          'utarfile.py']
+# Предкомпиляция: .mpy грузится без on-device компиляции (и грузится
+# только если одноимённого .py на плате нет).
+MPY_SRC = ['web.py', 'alerts.py']
 OUT = sys.argv[1] if len(sys.argv) > 1 else 'firmware.tar.gz'
 
 base = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'src')
+
+
+def find_mpy_cross():
+    exe = shutil.which('mpy-cross')
+    if exe:
+        return exe
+    for cand in (os.path.join(os.path.dirname(sys.executable), 'Scripts',
+                              'mpy-cross.exe'),
+                 os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                              'mpy-cross.exe')):
+        if os.path.exists(cand):
+            return cand
+    raise SystemExit('mpy-cross not found (pip install mpy-cross==1.28.0.post2 '
+                     'or place mpy-cross.exe next to pack.py)')
+
+
+mcpy = find_mpy_cross()
+for fn in MPY_SRC:
+    src_p = os.path.join(base, fn)
+    out_p = os.path.join(base, fn[:-3] + '.mpy')
+    subprocess.run([mcpy, src_p, '-o', out_p], check=True)
+    FILES.append(fn[:-3] + '.mpy')
+
 buf = io.BytesIO()
 with tarfile.open(fileobj=buf, mode='w') as t:
     for fn in FILES:

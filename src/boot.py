@@ -149,6 +149,12 @@ def _flash(n, ms=300):
 
 ok = _connect()
 if ok:
+    # power-save OFF: иначе устройство «спит» и не отвечает на ARP/UDP
+    # (нестабильный пинг/ DNS с хоста; pm по умолчанию=1 после каждой загрузки)
+    try:
+        sta.config(pm=0)
+    except Exception:
+        pass
     try:
         _log("wifi", "STA IP: " + sta.ifconfig()[0])
     except Exception:
