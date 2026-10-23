@@ -28,9 +28,10 @@ ESP32-S + MicroPython, веб-панель тревог. Прошивка леж
 файла) → тег + push → `gh release create` с ассетами **zip, MANIFEST.txt,
 firmware.tar.gz**. Каталог `releases/` в git не коммитится (в `.gitignore`):
 снапшот живёт локально и в GitHub Releases. Нужен `gh` (авторизован) и
-mpy-cross. Тег пушится только явным refspec `refs/tags/vX.Y.Z`: ветка и
-тег могут называться одинаково (`v0.4.0`), `git push origin vX.Y.Z` тогда
-падает с «matches more than one». Сбой на шаге `gh release create` после
+mpy-cross. Тег пушится явным refspec `refs/tags/vX.Y.Z` — так безопаснее,
+даже если ветка с тем же именем снова появится: `git push origin vX.Y.Z`
+тогда падает с «matches more than one» (и `--delete` для ветки — тоже,
+через `refs/heads/...`). Сбой на шаге `gh release create` после
 push тега → повтор с ручным `git tag -d vX.Y.Z` +
 `git push origin :refs/tags/vX.Y.Z`.
 
