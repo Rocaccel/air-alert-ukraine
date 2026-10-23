@@ -6,3 +6,4 @@ __pycache__/
 mpy/
 tmp_*.tar.gz
 tmp_ota.py
+releases/

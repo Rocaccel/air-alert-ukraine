@@ -62,7 +62,8 @@ esp-alert/
 ├── config_default.json   # дефолты (дублируют DEFAULTS в коде)
 ├── pack.py / pack.bat    # сборка firmware.tar.gz (gzip wbits=9!)
 ├── upload.bat            # заливка отдельных файлов по USB (mpremote, COM3)
-└── build-mpy.bat         # предкомпиляция .py → .mpy (нужен mpy-cross; web.mpy/alerts.mpy едут на плату вместо .py)
+├── build-mpy.bat         # предкомпиляция .py → .mpy (нужен mpy-cross; web.mpy/alerts.mpy едут на плату вместо .py)
+└── release.py / release.bat  # релиз: снапшот releases/X.Y.Z/ + GitHub Release
 ```
 
 На устройстве дополнительно создаются: `config.json` (только по Save),
@@ -73,7 +74,8 @@ esp-alert/
 - MicroPython 1.28.x, прошитый в ESP32-S (Thonny → Tools → Options → Interpreter);
 - Python 3 на ПК + `mpremote` (`python -m pip install mpremote`);
 - USB-кабель данных (плата видна как COM-порт, обычно CP210x);
-- Для OTA: плата и ПК в одной LAN (тумблер убран в 0.2.1, роуты всегда открыты).
+- Для OTA: плата и ПК в одной LAN (тумблер убран в 0.2.1, роуты всегда открыты);
+- Для релизов: GitHub CLI `gh` с авторизацией (`release.py`).
 
 ## Первый запуск
 
@@ -199,6 +201,7 @@ poll() -> accept -> чтение заголовков -> роут по path+meth
 | `upload.bat f1 f2...` | **Основной путь**: файлы из `src/` по USB (mpremote, COM3) + reset |
 | `pack.bat` / `pack.py` | Сборка `firmware.tar.gz`: tar + gzip **wbits=9**, авто-компиляция `web.mpy`/`alerts.mpy` (mpy-cross) |
 | `build-mpy.bat` | `.py` → `.mpy` отдельно от бандла (нужен mpy-cross 1.28.x) |
+| `release.py` / `release.bat` | **Релиз `X.Y.Z`**: сверка версии → `pack.py` → снапшот `releases/X.Y.Z/` (zip + `MANIFEST.txt`, локально, в git не идёт) → тег `vX.Y.Z` → GitHub Release с ассетами zip, MANIFEST.txt, firmware.tar.gz |
 
 Правила для `.bat`: CRLF-переводы строк (LF ломает `goto`/`if`),
 без скобок в REM-строках.
@@ -232,6 +235,11 @@ poll() -> accept -> чтение заголовков -> роут по path+meth
 - **Настройки**: `config.json` пишется только по «Сохранить» и атомарно
   (`config.json.tmp` → rename): при обрыве питания остаётся либо старый,
   либо новый файл, но не полусохранённый.
+- **Релиз**: `release.py X.Y.Z` — одна команда делает снапшот
+  `releases/X.Y.Z/` (zip исходников + `MANIFEST.txt` со sha256; каталог
+  локальный, в git не коммитится) и публикует GitHub Release с ассетами
+  zip, MANIFEST.txt и свежим `firmware.tar.gz` — бандл можно скачать
+  прямо со страницы релиза и залить через «Полный архив».
 
 ## Тестирование
 

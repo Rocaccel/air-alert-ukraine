@@ -16,11 +16,23 @@ ESP32-S + MicroPython, веб-панель тревог. Прошивка леж
   2. `README.md` (3 места: «Версия X.Y.Z — пре-релиз», «FW_VERSION (сейчас X.Y.Z)»,
      пример `{"fw": "X.Y.Z"}`);
   3. пересобрать бандл: `pack.bat`;
-   4. снапшот релиза: `releases/X.Y.Z/` (zip 20 записей + `MANIFEST.txt` со
-      sha256), прошлые `releases/*` не трогать;
+  4. релиз: `release.py X.Y.Z` — снапшот + публикация (см. «Релизы»);
   5. залить на устройство и сверить `/status` → `fw`.
-- `releases/0.1.9/` — исторический снапшот состояния до правок 2026-09-26,
-  не обновлять и не удалять.
+
+## Релизы
+
+`release.py X.Y.Z` (или `release.bat X.Y.Z`) — одна команда: сверка версии
+с `FW_VERSION` → чистое рабочее дерево и отсутствующий тег `vX.Y.Z` →
+свежий `pack.py` → `releases/X.Y.Z/` (zip tracked-файлов без
+`.gitignore`/`AGENTS.md` + `MANIFEST.txt` со sha256 zip, бандла и каждого
+файла) → тег + push → `gh release create` с ассетами **zip, MANIFEST.txt,
+firmware.tar.gz**. Каталог `releases/` в git не коммитится (в `.gitignore`):
+снапшот живёт локально и в GitHub Releases. Нужен `gh` (авторизован) и
+mpy-cross. Тег пушится только явным refspec `refs/tags/vX.Y.Z`: ветка и
+тег могут называться одинаково (`v0.4.0`), `git push origin vX.Y.Z` тогда
+падает с «matches more than one». Сбой на шаге `gh release create` после
+push тега → повтор с ручным `git tag -d vX.Y.Z` +
+`git push origin :refs/tags/vX.Y.Z`.
 
 ## Среда (Windows, важно)
 
