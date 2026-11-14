@@ -118,7 +118,8 @@ def _connect():
         return False
 
 def _flash(n, ms=300):
-    """Самопроверка LED при старте: 1 вспышка = STA ok, 2 = AP-режим.
+    """Самопроверка LED при старте: 1 вспышка = STA ok, 2 = AP-режим
+    (SSID пустой), 3 = SSID сохранён, сети нет (AP НЕ поднимается).
     Никогда не роняет загрузку."""
     try:
         import machine
@@ -161,14 +162,21 @@ if ok:
         pass
     _flash(1)
 else:
-    # Fallback AP для первоначальной настройки
-    try:
-        ap.active(True)
-        ap.config(essid="ESP32-ALERT", authmode=network.AUTH_OPEN)
-        _log("wifi", "AP ESP32-ALERT 192.168.4.1")
-    except Exception as e:
-        _log("wifi", "AP fail: " + str(e))
-    _flash(2)
+    if SSID:
+        # Настройки домашней сети есть — AP НЕ поднимаем (карточка TODO):
+        # STA продолжает попытки сам (auto-reconnect), сеть подхватится,
+        # когда появится. Иначе AP остался бы включённым рядом с STA.
+        _log("wifi", "STA offline (ssid set), AP skipped")
+        _flash(3)
+    else:
+        # SSID пустой — первоначальная настройка: AP для конфигурации
+        try:
+            ap.active(True)
+            ap.config(essid="ESP32-ALERT", authmode=network.AUTH_OPEN)
+            _log("wifi", "AP ESP32-ALERT 192.168.4.1")
+        except Exception as e:
+            _log("wifi", "AP fail: " + str(e))
+        _flash(2)
 
 # Остаток окна GPIO0: WiFi уже дал тикам ~1.5-2с, добираем до полного
 # окна (100мс/замер). В норме окно уже исчерпано -> задержки нет.

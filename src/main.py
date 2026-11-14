@@ -48,10 +48,12 @@ state = {
 try:
     import network
     sta = network.WLAN(network.STA_IF)
+    ap = network.WLAN(network.AP_IF)
     if sta.isconnected():
         state["ip"] = sta.ifconfig()[0]
 except Exception:
     sta = None
+    ap = None
 
 logbuf.log("boot", "esp-alert %s region=%s interval=%s thread=%s" % (
     version.FW_VERSION, cfg.get("region"), cfg.get("check_interval"), HAVE_THREAD))
@@ -302,9 +304,21 @@ def start_worker():
         logbuf.log("worker", "thread fail (%r), sync mode" % (e,))
         return False
 
+_recon_t0 = 0
+_RECON_MS = 90000  # повтор STA-подключения при потере/отсутствии связи
+
 def wifi_step():
+    global _recon_t0
     try:
         if sta is not None and sta.isconnected():
+            # STA жив — гасим AP, если тот вдруг остался включённым
+            # (иначе две сети одновременно, баг из TODO)
+            try:
+                if ap is not None and ap.active():
+                    ap.active(False)
+                    logbuf.log("wifi", "AP off (STA online)")
+            except Exception:
+                pass
             ip = sta.ifconfig()[0]
             if ip != state.get("ip"):
                 _take()
@@ -313,14 +327,27 @@ def wifi_step():
                 finally:
                     _give()
                 logbuf.log("wifi", "ip=" + ip)
+            _recon_t0 = time.ticks_ms()
         else:
             if state.get("ip"):
-                logbuf.log("wifi", "lost (AP fallback активен если был)")
+                logbuf.log("wifi", "lost (reconnect every 90s, no AP)")
                 _take()
                 try:
                     state["ip"] = ""
                 finally:
                     _give()
+            # SSID сохранён, связи нет — периодический повтор (страховка,
+            # если auto-reconnect драйвера сдастся)
+            ssid = cfg.get("wifi_ssid", "") or ""
+            if ssid:
+                now = time.ticks_ms()
+                if time.ticks_diff(now, _recon_t0) >= _RECON_MS:
+                    _recon_t0 = now
+                    try:
+                        sta.connect(ssid, cfg.get("wifi_pass", "") or "")
+                        logbuf.log("wifi", "reconnect try")
+                    except Exception as e:
+                        logbuf.log("wifi", "recon err: " + str(e)[:60])
     except Exception as e:
         logbuf.log("wifi", "mon err: " + str(e)[:80])
 
