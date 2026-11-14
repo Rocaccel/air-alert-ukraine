@@ -1,6 +1,7 @@
 # Tasks
 
 ## Backlog
+- Везде где есть ESP32 Alert Monitor заменить на Air Alert Monitor.
 
 ## In Progress
 
