@@ -4,7 +4,7 @@ import gc
 ALLOWED = (
     "main.py", "web.py", "alerts.py", "ota.py",
     "config_store.py", "boot.py", "version.py",
-    "hw.py", "logbuf.py", "template.html", "utarfile.py",
+    "hw.py", "logbuf.py", "template.html", "info.html", "utarfile.py",
     # предкомпилированный байткод: .mpy используется ТОЛЬКО когда .py
     # отсутствует (у .py приоритет!). On-device компиляция web.py/alerts.py
     # после WiFi-инициализации рвёт кучу -> lwIP без mbuf -> сеть мертва,

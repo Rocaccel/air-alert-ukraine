@@ -22,7 +22,7 @@ import zlib
 # Исходники .py остаются в src/ и в zip релиза.
 FILES = ['boot.py', 'main.py', 'config_store.py',
          'ota.py', 'version.py', 'hw.py', 'logbuf.py', 'template.html',
-         'utarfile.py']
+         'info.html', 'utarfile.py']
 # Предкомпиляция: .mpy грузится без on-device компиляции (и грузится
 # только если одноимённого .py на плате нет).
 MPY_SRC = ['web.py', 'alerts.py']

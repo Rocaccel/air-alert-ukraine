@@ -132,6 +132,11 @@ _last_skip_log = None
 
 def do_check(first=False, retries=3):
     global _last_skip_log
+    _take()
+    try:
+        state["last_check_ts"] = time.ticks_ms()
+    finally:
+        _give()
     # v2.0.1: без WiFi проверять нечего (AP-режим = нет интернета).
     # Пропускаем тихо: лог не чаще раза в 5 мин, LED держит последнее.
     if not _online():
@@ -420,6 +425,14 @@ if not worker_ok:
         if wdiff >= 30000:
             last_wifi = now
             wifi_step()
+        # heartbeat синхронного режима: иначе /info покажет «завис»
+        _take()
+        try:
+            state["worker_ts"] = time.ticks_ms()
+        except Exception:
+            state["worker_ts"] = 1
+        finally:
+            _give()
         try:
             time.sleep_ms(50)
         except Exception:

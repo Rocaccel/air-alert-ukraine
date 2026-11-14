@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ru"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+<title>ESP Alert — Состояние</title>
+<style>
+:root{--bg:#0b0f19;--surface:#151d2a;--surface-subtle:#1c2636;--border:#283548;--text:#e2e8f0;--text-muted:#94a3b8;--text-dim:#64748b;--accent:#f59e0b;--accent-alert:#ef4444;--accent-ok:#10b981;--accent-glow:rgba(245,158,11,.2);--radius:14px;--radius-sm:8px}
+*{box-sizing:border-box;margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-tap-highlight-color:transparent}
+body{background:var(--bg);color:var(--text);line-height:1.45;padding:16px 12px 60px;min-height:100vh;max-width:680px;margin:0 auto}
+header{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;padding:6px 4px;gap:8px}
+.header-title{display:flex;align-items:center;gap:10px}
+.logo-icon{width:34px;height:34px;background:linear-gradient(135deg,#f59e0b,#d97706);border-radius:9px;display:flex;align-items:center;justify-content:center;color:#0b0f19;font-weight:900;font-size:19px}
+h1{font-size:1.25rem;font-weight:700;color:#f8fafc}
+.header-sub{font-size:.78rem;color:var(--text-muted)}
+.hdr-btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.json-btn{display:inline-flex;align-items:center;font-size:.8rem;color:var(--accent);background:var(--surface-subtle);border:1px solid var(--border);padding:6px 11px;border-radius:var(--radius-sm);text-decoration:none;font-weight:600}
+.status-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 16px;margin-bottom:20px;position:relative;overflow:hidden}
+.status-card::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:linear-gradient(90deg,var(--accent-alert),var(--accent))}
+.status-hero{display:flex;flex-direction:column;align-items:center;text-align:center;padding-bottom:16px;border-bottom:1px solid var(--border)}
+.state-indicator{display:inline-flex;align-items:center;gap:10px;padding:10px 22px;border-radius:9999px;font-size:1.1rem;font-weight:800;letter-spacing:.05em;margin-bottom:8px;text-transform:uppercase;border:1px solid}
+.state-indicator.on{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.45);color:#fca5a5}
+.state-indicator.off{background:rgba(16,185,129,.12);border-color:rgba(16,185,129,.4);color:#6ee7b7}
+.pulse-dot{width:12px;height:12px;border-radius:50%;display:inline-block}
+.pulse-dot.on{background:var(--accent-alert);box-shadow:0 0 10px var(--accent-alert);animation:pulse 1.6s infinite ease-in-out}
+.pulse-dot.off{background:var(--accent-ok);box-shadow:0 0 10px var(--accent-ok)}
+@keyframes pulse{0%{transform:scale(.9);opacity:.8}70%{transform:scale(1.15);opacity:1}100%{transform:scale(.9);opacity:.8}}
+.status-subtitle{font-size:.82rem;color:var(--text-muted)}
+.telemetry-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 14px;padding-top:14px}
+.telemetry-label{font-size:.75rem;color:var(--text-dim);text-transform:uppercase;font-weight:600}
+.telemetry-val{font-size:.92rem;font-weight:600;color:#f1f5f9;overflow-wrap:anywhere}
+.mono{font-family:ui-monospace,Menlo,monospace;font-size:.88rem}
+.err{color:#f87171}.ok{color:#34d399}.warn{color:#fbbf24}
+.section{margin-bottom:22px}
+.section-header{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding-left:4px}
+.section-title{font-size:1rem;font-weight:700;color:#f8fafc}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.log{font-family:ui-monospace,Menlo,monospace;font-size:.76rem;color:var(--text-muted);white-space:pre-wrap;word-break:break-all;max-height:340px;overflow-y:auto;line-height:1.65}
+footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim);display:flex;flex-direction:column;gap:10px;align-items:center}
+@media(min-width:580px){.telemetry-grid{grid-template-columns:repeat(4,1fr)}}
+</style>
+</head>
+<body>
+<header>
+<div class="header-title"><div class="logo-icon">⚡</div><div><h1>ESP Alert</h1><div class="header-sub">Состояние устройства</div></div></div>
+<div class="hdr-btns"><a class="json-btn" href="/">Настройки</a><a class="json-btn" href="/status">/status</a></div>
+</header>
+<div class="status-card">
+<div class="status-hero">
+<div class="state-indicator {{ALERT_CLS}}"><span class="pulse-dot {{ALERT_CLS}}"></span><span>{{ALERT_BADGE}}</span></div>
+<div class="status-subtitle">{{ALERT_SUB}}</div>
+</div>
+<div class="telemetry-grid">
+<div><div class="telemetry-label">Регион</div><div class="telemetry-val">{{REGION}}</div></div>
+<div><div class="telemetry-label">Проверка</div><div class="telemetry-val {{CHECK_CLS}}">{{CHECK}} · {{CHECK_AGO}}</div></div>
+<div><div class="telemetry-label">Ошибка</div><div class="telemetry-val {{ERR_CLS}}">{{ERR}}</div></div>
+<div><div class="telemetry-label">Сеть</div><div class="telemetry-val {{NET_CLS}}">{{NETMODE}}</div></div>
+<div><div class="telemetry-label">IP</div><div class="telemetry-val mono">{{IPURL}}</div></div>
+<div><div class="telemetry-label">WiFi</div><div class="telemetry-val mono">{{WIFI_SHOW}}</div></div>
+<div><div class="telemetry-label">Источник</div><div class="telemetry-val mono">{{SOURCE}}</div></div>
+<div><div class="telemetry-label">Период</div><div class="telemetry-val">{{INTERVAL}} с</div></div>
+<div><div class="telemetry-label">Прошивка</div><div class="telemetry-val mono">{{FW}}</div></div>
+<div><div class="telemetry-label">Аптайм</div><div class="telemetry-val">{{UPTIME}}</div></div>
+<div><div class="telemetry-label">Память</div><div class="telemetry-val">{{HEAP}}</div></div>
+<div><div class="telemetry-label">Поток</div><div class="telemetry-val {{WORKER_CLS}}">{{WORKER}}</div></div>
+</div>
+</div>
+<div class="section">
+<div class="section-header"><div class="section-title">Журнал — последние события</div></div>
+<div class="card log">{{LOG}}</div>
+</div>
+<footer>
+<div>ESP32 Alert Monitor • {{NETMODE}}</div>
+<a class="json-btn" href="/">← Настройки</a>
+</footer>
+</body></html>

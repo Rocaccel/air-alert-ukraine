@@ -4,6 +4,7 @@
 # Причина: при 85КБ свободного heap нет непрерывных 13КБ (фрагментация) — было OOM.
 # /upload одиночного .py УБРАН по решению v5 (только бандл + URL публичные).
 import gc
+import time
 import machine
 
 try:
@@ -110,6 +111,90 @@ def _fw():
     except Exception:
         return "?"
 
+def _net_mode(cfg, state):
+    # честный режим: офлайн с сохранённым SSID — не AP (AP только при пустом SSID)
+    if state.get("ip"):
+        return "Онлайн — домашняя сеть"
+    if cfg.get("wifi_ssid", ""):
+        return "Офлайн — сеть недоступна"
+    return "Точка доступа ESP32-ALERT"
+
+def _ago(ts):
+    # "35 с назад" / "5 мин назад" для последней проверки
+    if not ts:
+        return "—"
+    try:
+        d = time.ticks_diff(time.ticks_ms(), ts) // 1000
+    except Exception:
+        return "—"
+    if d < 0:
+        d = 0
+    if d < 90:
+        return "%d с назад" % d
+    if d < 5400:
+        return "%d мин назад" % (d // 60)
+    if d < 129600:
+        return "%d ч назад" % (d // 3600)
+    return "%d дн назад" % (d // 86400)
+
+def _uptime():
+    try:
+        s = time.ticks_ms() // 1000
+    except Exception:
+        return "?"
+    if s < 90:
+        return "%d с" % s
+    if s < 5400:
+        return "%d мин" % (s // 60)
+    if s < 129600:
+        return "%d ч %d мин" % (s // 3600, (s % 3600) // 60)
+    return "%d дн" % (s // 86400)
+
+def _info_tokens(cfg, state):
+    # токены страницы /info: человекочитаемые индикаторы работы и ошибок
+    err = str(state.get("last_err", "") or "")
+    lc = state.get("last_check", "never")
+    if err:
+        check, ccls = "Ошибка опроса", "err"
+    elif lc == "ok":
+        check, ccls = "Проверено", "ok"
+    elif lc == "offline":
+        check, ccls = "Нет сети", "warn"
+    else:
+        check, ccls = "Ещё не проверялось", "warn"
+    if state.get("ip"):
+        ncls = "ok"
+    elif cfg.get("wifi_ssid", ""):
+        ncls = "err"
+    else:
+        ncls = "warn"
+    # здоровье веб-потока: heartbeat обновляется каждые ~50мс
+    ts = state.get("worker_ts", 0)
+    try:
+        age = time.ticks_diff(time.ticks_ms(), ts) // 1000 if ts else -1
+    except Exception:
+        age = -1
+    if 0 <= age < 5:
+        worker, wcls = "жив", "ok"
+    elif age >= 5:
+        worker, wcls = "завис (%d с)" % age, "err"
+    else:
+        worker, wcls = "—", "warn"
+    ssid = cfg.get("wifi_ssid", "") or ""
+    lines = logbuf.tail()
+    return {
+        "{{CHECK}}": _esc(check),
+        "{{CHECK_CLS}}": ccls,
+        "{{CHECK_AGO}}": _esc(_ago(state.get("last_check_ts", 0))),
+        "{{NET_CLS}}": ncls,
+        "{{WIFI_SHOW}}": _esc(ssid if ssid else "—"),
+        "{{UPTIME}}": _esc(_uptime()),
+        "{{HEAP}}": "%d КБ" % (gc.mem_free() // 1024),
+        "{{WORKER}}": _esc(worker),
+        "{{WORKER_CLS}}": wcls,
+        "{{LOG}}": _esc("\n".join(lines)) if lines else "— пусто",
+    }
+
 _CHUNK = 512  # чанки чтения template.html: ни одного объекта ~13КБ в RAM
 _OPTS_TOKEN = b"{{REGION_OPTIONS}}"
 
@@ -146,7 +231,7 @@ def render_tokens(cfg, state, msg=""):
         "{{ERR_CLS}}": "err" if err else "ok",
         "{{IP}}": _esc(state.get("ip", "")),
         "{{IPURL}}": _esc(state.get("ip", "") or "192.168.4.1"),
-        "{{NETMODE}}": "Онлайн STA-режим" if state.get("ip") else "Офлайн AP-режим",
+        "{{NETMODE}}": _net_mode(cfg, state),
         "{{FW}}": _esc(_fw()),
         "{{INTERVAL}}": _esc(cfg.get("check_interval", 60)),
         "{{WIFI_SSID}}": _esc(cfg.get("wifi_ssid", "")),
@@ -175,12 +260,12 @@ def _emit_safe(safe, btoks):
                     p = p.replace(k, v)
             yield (0, p)
 
-def _scan_template(btoks, max_tok):
+def _scan_template(btoks, max_tok, tpl=TPL_PATH):
     """Детерминированный проход по файлу (для замера длины и для отправки).
     Читаем чанками по _CHUNK байт; токен на границе чанков не теряется
     (overlap max_tok + откат partial-токена в carry)."""
     tkeys = tuple(btoks.keys()) + (_OPTS_TOKEN,)
-    with open(TPL_PATH, "rb") as f:
+    with open(tpl, "rb") as f:
         carry = b""
         while True:
             piece = f.read(_CHUNK)
@@ -210,8 +295,10 @@ def _scan_template(btoks, max_tok):
             for item in _emit_safe(safe, btoks):
                 yield item
 
-def _send_template(conn, cfg, state, msg=""):
+def _send_template(conn, cfg, state, msg="", tpl=TPL_PATH, extra_toks=None):
     toks = render_tokens(cfg, state, msg)
+    if extra_toks:
+        toks.update(extra_toks)
     btoks = {}
     for k, v in toks.items():
         try:
@@ -225,7 +312,7 @@ def _send_template(conn, cfg, state, msg=""):
     gc.collect()
     # проход 1: точная длина тела без материализации страницы
     total = 0
-    for kind, data in _scan_template(btoks, max_tok):
+    for kind, data in _scan_template(btoks, max_tok, tpl):
         if kind == 0:
             total += len(data)
         else:
@@ -235,7 +322,7 @@ def _send_template(conn, cfg, state, msg=""):
             "Content-Length: %d\r\nConnection: close\r\n\r\n" % total)
     conn.send(head.encode())
     # проход 2: отправка чанками; опции — по одному региону
-    for kind, data in _scan_template(btoks, max_tok):
+    for kind, data in _scan_template(btoks, max_tok, tpl):
         if kind == 0:
             if data:
                 conn.send(data)
@@ -341,6 +428,11 @@ def poll(srv, cfg, state, config_store, set_led=None):
             st["interval"] = cfg.get("check_interval")
             st["log_tail"] = logbuf.tail()
             _send(conn, 200, "application/json", json.dumps(st))
+        elif path == "/info" and method == "GET":
+            # человекочитаемая страница состояния (индикаторы + журнал)
+            gc.collect()
+            _send_template(conn, cfg, state, "", "info.html",
+                           _info_tokens(cfg, state))
         elif path == "/save" and method == "POST":
             raw, buf = _recv_exact(conn, buf, clen, 8192)
             form = _parse_qs(raw.decode("utf-8", "ignore"))
@@ -467,7 +559,7 @@ def _handle_url(form, cfg):
     else:
         target = _ota().safe_name(form.get("target", "main.py"))
         if not _ota().is_allowed(target):
-            return "Target запрещен (разрешены: пакет или файл: main.py, web.py, alerts.py, ota.py, config_store.py, boot.py, version.py, hw.py, logbuf.py, template.html, web.mpy, alerts.mpy)"
+            return "Target запрещен (разрешены: пакет или файл: main.py, web.py, alerts.py, ota.py, config_store.py, boot.py, version.py, hw.py, logbuf.py, template.html, info.html, web.mpy, alerts.mpy)"
         try:
             _ota().download_url(url, "tmp_ota.py", _ota().MAX_SINGLE)
             _ota().LAST_BAK_FAIL[:] = []  # иначе в сообщении останется список из прошлого бандла
