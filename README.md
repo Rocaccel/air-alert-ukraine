@@ -145,7 +145,7 @@ API и поведение ещё могут меняться.
 | Метод + путь       | Что делает                                               |
 | ------------------ | -------------------------------------------------------- |
 | `GET /`            | Панель (стрим-рендер, 20 токенов)                        |
-| `GET /status`      | JSON: `fw/alert/region/source/last_err/ip/log_tail`      |
+| `GET /status`      | JSON: `fw/alert/region/interval/blink_on_ms/blink_off_ms/source/last_err/ip/log_tail` |
 | `GET /info`        | HTML: индикаторы состояния и журнал (человекочитаемо)    |
 | `POST /save`       | Форма настроек → `config.json`, ребут при смене WiFi     |
 | `POST /reboot`     | `machine.reset()`                                        |

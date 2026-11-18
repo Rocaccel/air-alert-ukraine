@@ -129,7 +129,7 @@ footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim)}
 </div>
 <div class="card-actions"><button class="btn btn-primary" type="submit">Сохранить</button></div>
 </div></div>
-</form>
+<script>document.addEventListener('change', function(e) {const input = e.target; if (input.name === 'blink_on_ms' || input.name === 'blink_off_ms') {const form = input.closest('form'); if (!form) return; const rad = form.querySelector('input[' + chr(34) + 'tabs' + chr(34) + ']'); if (!rad) return; const tabs = ['tab1', 'tab2', 'tab3']; const active = form.querySelector('input[' + chr(34) + 'tabs' + chr(34) + ':checked'); if (active && active.id !== tabs[0]) {input.required = false;} else {input.required = true;}}});</script></form>
 <div class="section panel panel3"><div class="section-header"><div class="section-title">Обновление прошивки</div></div>
 <div class="card"><div class="ota-grid">
 <div class="subcard"><div class="subcard-title">Архив с прошивкой .tar.gz</div>

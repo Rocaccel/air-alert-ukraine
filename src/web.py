@@ -429,6 +429,8 @@ def poll(srv, cfg, state, set_led=None):
             st["fw"] = _fw()
             st["region"] = cfg.get("region")
             st["interval"] = cfg.get("check_interval")
+            st["blink_on_ms"] = cfg.get("blink_on_ms")
+            st["blink_off_ms"] = cfg.get("blink_off_ms")
             st["log_tail"] = logbuf.tail()
             _send(conn, 200, "application/json", json.dumps(st))
         elif path == "/info" and method == "GET":
@@ -463,6 +465,14 @@ def poll(srv, cfg, state, set_led=None):
                 form.get("blink_on_ms"), cfg.get("blink_on_ms", 500))
             cfg["blink_off_ms"] = config_store.blink_ms(
                 form.get("blink_off_ms"), cfg.get("blink_off_ms", 500))
+            # клиент отправил число, а применено другое -> зажим 50..5000
+            blink_clamped = False
+            for _k in ("blink_on_ms", "blink_off_ms"):
+                try:
+                    if int(str(form.get(_k, "")).strip()) != cfg[_k]:
+                        blink_clamped = True
+                except Exception:
+                    pass
             cfg["wifi_ssid"] = form.get("wifi_ssid", cfg.get("wifi_ssid", ""))
             cfg["wifi_pass"] = form.get("wifi_pass", cfg.get("wifi_pass", ""))
             wifi_changed = (cfg.get("wifi_ssid", "") != old_ssid
@@ -476,8 +486,11 @@ def poll(srv, cfg, state, set_led=None):
                     msg = "Сохранено"
                 if region_warn:
                     msg += " (регион не распознан — оставлен прежний)"
-                logbuf.log("web", "save region=%s interval=%s wifi_changed=%s" % (
-                    cfg.get("region"), cfg.get("check_interval"), wifi_changed))
+                if blink_clamped:
+                    msg += " (мигание приведено к 50–5000)"
+                logbuf.log("web", "save region=%s interval=%s blink=%s/%s wifi_changed=%s" % (
+                    cfg.get("region"), cfg.get("check_interval"),
+                    cfg.get("blink_on_ms"), cfg.get("blink_off_ms"), wifi_changed))
             except Exception as e:
                 msg = "Ошибка сохранения: " + str(e)
                 wifi_changed = False
