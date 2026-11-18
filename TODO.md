@@ -1,10 +1,10 @@
 # Tasks
 
 ## Backlog
-- Нет повторяемых проверок в репо: создать tools/check.py — py_compile; рендер (нет остаточных {{, value=100/200 в input#blink_*, name="blink_*" ↔ form.get); blink_ms (10→50, 99999→5000, abc/None/""/-5/"100.5"→old); _sanitize (99999→5000, {}→500); FW_VERSION в README ≥2 раз; README «Тестирование» переписать под скрипт @mid
 - template.html доступность подсказок: id + aria-describedby на blink-полях, контраст .hint ≈3.55:1 (< WCAG AA 4.5), form-row без адаптива на 320–360px (короткие подписи или media query) @low
 
 ## In Progress
+- Нет повторяемых проверок в репо: создать tools/check.py — py_compile; рендер (нет остаточных {{, value=100/200 в input#blink_*, name="blink_*" ↔ form.get); blink_ms (10→50, 99999→5000, abc/None/""/-5/"100.5"→old); _sanitize (99999→5000, {}→500); FW_VERSION в README ≥2 раз; README «Тестирование» переписать под скрипт @mid
 
 ## Done
 - README.md устарел после 0.7.0: строка 133 «правкой файла, в панели нет» (панель есть, зажим 50–5000), 135 санитизация без blink-зажима, 146 «18 токенов» → 20, 215 «500/500 мс» → «по умолчанию, настраивается в панели» @high
