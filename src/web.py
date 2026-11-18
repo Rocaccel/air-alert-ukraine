@@ -334,7 +334,7 @@ def _send_template(conn, cfg, state, msg="", tpl=TPL_PATH, extra_toks=None):
                 conn.send(_opt_bytes(_s, _n))
     gc.collect()
 
-def start_server(cfg, state, config_store):
+def start_server(cfg, state):
     s = socket.socket()
     try:
         s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -383,7 +383,7 @@ def _recv_exact(conn, buf, n, limit=400 * 1024):
         buf = buf + ch
     return buf[:n], buf[n:]
 
-def poll(srv, cfg, state, config_store, set_led=None):
+def poll(srv, cfg, state, set_led=None):
     s = srv["sock"]
     poller = srv.get("poller")
     try:

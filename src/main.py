@@ -264,7 +264,7 @@ def worker_task(gen):
         # 2) веб (неблокирующий accept + короткие ответы)
         if srv:
             try:
-                webmod.poll(srv, cfg, state, config_store, set_led)
+                webmod.poll(srv, cfg, state, set_led)
             except Exception as e:
                 logbuf.log("web", "poll err: " + str(e)[:100])
         # 3) heartbeat
@@ -359,7 +359,7 @@ def wifi_step():
 # веб-сервер СТАРТУЕТ ДО первой проверки: портал доступен через ~3с
 srv = None
 try:
-    srv = webmod.start_server(cfg, state, config_store)
+    srv = webmod.start_server(cfg, state)
     logbuf.log("web", "on :80 ip=" + str(state.get("ip", "")))
 except Exception as e:
     logbuf.log("web", "fail: " + str(e))
@@ -415,7 +415,7 @@ if not worker_ok:
             do_check(first=False)
         if srv:
             try:
-                webmod.poll(srv, cfg, state, config_store, set_led)
+                webmod.poll(srv, cfg, state, set_led)
             except Exception as e:
                 logbuf.log("web", "poll err: " + str(e)[:100])
         try:
