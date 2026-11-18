@@ -235,8 +235,8 @@ def render_tokens(cfg, state, msg=""):
         "{{NETMODE}}": _net_mode(cfg, state),
         "{{FW}}": _esc(_fw()),
         "{{INTERVAL}}": _esc(cfg.get("check_interval", 60)),
-        "{{BLINK_ON}}": _esc(cfg.get("blink_on_ms", 500)),
-        "{{BLINK_OFF}}": _esc(cfg.get("blink_off_ms", 500)),
+        "{{BLINK_ON}}": _esc(cfg.get("blink_on_ms")),
+        "{{BLINK_OFF}}": _esc(cfg.get("blink_off_ms")),
         "{{WIFI_SSID}}": _esc(cfg.get("wifi_ssid", "")),
         "{{WIFI_PASS}}": _esc(cfg.get("wifi_pass", "")),
         "{{MSG}}": ('<div class="msg">' + _esc(msg) + "</div>") if msg else "",
@@ -461,10 +461,8 @@ def poll(srv, cfg, state, set_led=None):
             except Exception:
                 pass
             # поля мигания: зажим 50..5000, мусор не затирает старую настройку
-            cfg["blink_on_ms"] = config_store.blink_ms(
-                form.get("blink_on_ms"), cfg.get("blink_on_ms", 500))
-            cfg["blink_off_ms"] = config_store.blink_ms(
-                form.get("blink_off_ms"), cfg.get("blink_off_ms", 500))
+            cfg["blink_on_ms"] = config_store.blink_ms(form.get("blink_on_ms"))
+            cfg["blink_off_ms"] = config_store.blink_ms(form.get("blink_off_ms"))
             # клиент отправил число, а применено другое -> зажим 50..5000
             blink_clamped = False
             for _k in ("blink_on_ms", "blink_off_ms"):

@@ -25,17 +25,21 @@ DEFAULTS = {
     "blink_off_ms": 500,
 }
 
-BLINK_MIN_MS = 50
+BLINK_MIN_MS = 150
 BLINK_MAX_MS = 5000
 
 
 def blink_ms(raw, old=500):
     """Значение поля мигания -> int в 50..5000.
-    Мусор (пусто, текст) -> old: сохранённая настройка не теряется."""
+    Мусор (пусто, текст) -> old: сохранённая настройка не теряется.
+    Поддержка float: int(1000.0) -> 1000, int("1000.0") -> ValueError."""
     try:
-        v = int(str(raw).strip())
+        v = int(raw)
     except Exception:
-        return old
+        try:
+            v = int(str(raw).strip())
+        except Exception:
+            return old
     if v < BLINK_MIN_MS:
         return BLINK_MIN_MS
     if v > BLINK_MAX_MS:
