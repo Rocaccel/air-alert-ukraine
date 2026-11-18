@@ -112,10 +112,10 @@ footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim)}
 <input id="check_interval" name="check_interval" type="number" min="10" max="3600" required value="{{INTERVAL}}"/>
 <div class="hint">Рекомендуется 30–60 сек</div></div>
 <div class="form-row">
-<div class="form-group"><label for="blink_on_ms">Мигание: горит (мс, 50–5000)</label>
+<div class="form-group"><label for="blink_on_ms">Свечение LED при тревоге (мс, 150–5000)</label>
 <input id="blink_on_ms" name="blink_on_ms" type="number" min="150" max="5000" required value="{{BLINK_ON}}"/>
 <div class="hint">Длительность свечения</div></div>
-<div class="form-group"><label for="blink_off_ms">Мигание: погашен (мс, 50–5000)</label>
+<div class="form-group"><label for="blink_off_ms">Пауза между вспышками при тревоге (мс, 150–5000)</label>
 <input id="blink_off_ms" name="blink_off_ms" type="number" min="150" max="5000" required value="{{BLINK_OFF}}"/>
 <div class="hint">Длительность паузы</div></div>
 </div>
