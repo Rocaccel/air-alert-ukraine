@@ -25,6 +25,23 @@ DEFAULTS = {
     "blink_off_ms": 500,
 }
 
+BLINK_MIN_MS = 50
+BLINK_MAX_MS = 5000
+
+
+def blink_ms(raw, old=500):
+    """Значение поля мигания -> int в 50..5000.
+    Мусор (пусто, текст) -> old: сохранённая настройка не теряется."""
+    try:
+        v = int(str(raw).strip())
+    except Exception:
+        return old
+    if v < BLINK_MIN_MS:
+        return BLINK_MIN_MS
+    if v > BLINK_MAX_MS:
+        return BLINK_MAX_MS
+    return v
+
 _VALID = None
 
 def _valid_regions():
@@ -53,6 +70,8 @@ def _sanitize(cfg):
         out["check_interval"] = 10
     if out["check_interval"] > 3600:
         out["check_interval"] = 3600
+    out["blink_on_ms"] = blink_ms(out.get("blink_on_ms"), 500)
+    out["blink_off_ms"] = blink_ms(out.get("blink_off_ms"), 500)
     try:
         r = str(out.get("region", "odeska") or "").strip()
     except Exception:

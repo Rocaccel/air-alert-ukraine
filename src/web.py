@@ -25,6 +25,7 @@ except ImportError:
     import os
 
 import logbuf
+import config_store
 
 _ota_mod = None
 
@@ -234,6 +235,8 @@ def render_tokens(cfg, state, msg=""):
         "{{NETMODE}}": _net_mode(cfg, state),
         "{{FW}}": _esc(_fw()),
         "{{INTERVAL}}": _esc(cfg.get("check_interval", 60)),
+        "{{BLINK_ON}}": _esc(config_store.blink_ms(cfg.get("blink_on_ms", 500), 500)),
+        "{{BLINK_OFF}}": _esc(config_store.blink_ms(cfg.get("blink_off_ms", 500), 500)),
         "{{WIFI_SSID}}": _esc(cfg.get("wifi_ssid", "")),
         "{{WIFI_PASS}}": _esc(cfg.get("wifi_pass", "")),
         "{{MSG}}": ('<div class="msg">' + _esc(msg) + "</div>") if msg else "",
@@ -455,6 +458,11 @@ def poll(srv, cfg, state, config_store, set_led=None):
                 cfg["check_interval"] = max(10, min(3600, int(form.get("check_interval", cfg.get("check_interval", 60)))))
             except Exception:
                 pass
+            # поля мигания: зажим 50..5000, мусор не затирает старую настройку
+            cfg["blink_on_ms"] = config_store.blink_ms(
+                form.get("blink_on_ms"), cfg.get("blink_on_ms", 500))
+            cfg["blink_off_ms"] = config_store.blink_ms(
+                form.get("blink_off_ms"), cfg.get("blink_off_ms", 500))
             cfg["wifi_ssid"] = form.get("wifi_ssid", cfg.get("wifi_ssid", ""))
             cfg["wifi_pass"] = form.get("wifi_pass", cfg.get("wifi_pass", ""))
             wifi_changed = (cfg.get("wifi_ssid", "") != old_ssid
