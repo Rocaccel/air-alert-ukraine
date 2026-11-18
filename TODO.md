@@ -1,7 +1,6 @@
 # Tasks
 
 ## Backlog
-- template.html доступность подсказок: id + aria-describedby на blink-полях, контраст .hint ≈3.55:1 (< WCAG AA 4.5), form-row без адаптива на 320–360px (короткие подписи или media query) @low
 
 ## In Progress
 
@@ -16,6 +15,7 @@
 - Дефолт 500 мигания продублирован: web.py:238-239 (двойной с old=500), web.py:463/465, мёртвый default old=500 в blink_ms — оставить одно место (DEFAULTS/сигнатура) @low
 - template.html:115-120 подписи полей мигания не называют объект: «Свечение LED при тревоге» / «Пауза между вспышками при тревоге», опционально мини-заголовок над парой полей @mid
 - Нет повторяемых проверок в репо: создать tools/check.py — py_compile; рендер (нет остаточных {{, value=100/200 в input#blink_*, name="blink_*" ↔ form.get); blink_ms (10→50, 99999→5000, abc/None/""/-5/"100.5"→old); _sanitize (99999→5000, {}→500); FW_VERSION в README ≥2 раз; README «Тестирование» переписать под скрипт @mid
+- template.html доступность подсказок: id + aria-describedby на blink-полях, контраст .hint ≈3.55:1 (< WCAG AA 4.5), form-row без адаптива на 320–360px (короткие подписи или media query) @low
 
 ## Blocked
 - Добавить механизм сброса настроек. Или механизм перевода устройства в режим AP
