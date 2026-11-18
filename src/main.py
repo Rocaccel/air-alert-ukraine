@@ -210,16 +210,10 @@ def do_check(first=False, retries=3):
     gc.collect()
 
 def blink_on_ms():
-    try:
-        return int(cfg.get("blink_on_ms", 500))
-    except Exception:
-        return 500
+    return config_store.blink_ms(cfg.get("blink_on_ms"))
 
 def blink_off_ms():
-    try:
-        return int(cfg.get("blink_off_ms", 500))
-    except Exception:
-        return 500
+    return config_store.blink_ms(cfg.get("blink_off_ms"))
 
 def worker_task(gen):
     """Веб + мигание во вторичном потоке. Чужое поколение — выход."""
