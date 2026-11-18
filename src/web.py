@@ -460,10 +460,10 @@ def poll(srv, cfg, state, set_led=None):
                 cfg["check_interval"] = max(10, min(3600, int(form.get("check_interval", cfg.get("check_interval", 60)))))
             except Exception:
                 pass
-            # поля мигания: зажим 50..5000, мусор не затирает старую настройку
+            # поля мигания: зажим BLINK_MIN_MS..BLINK_MAX_MS, мусор не затирает старую настройку
             cfg["blink_on_ms"] = config_store.blink_ms(form.get("blink_on_ms"))
             cfg["blink_off_ms"] = config_store.blink_ms(form.get("blink_off_ms"))
-            # клиент отправил число, а применено другое -> зажим 50..5000
+            # клиент отправил число, а применено другое -> зажим
             blink_clamped = False
             for _k in ("blink_on_ms", "blink_off_ms"):
                 try:
@@ -485,7 +485,7 @@ def poll(srv, cfg, state, set_led=None):
                 if region_warn:
                     msg += " (регион не распознан — оставлен прежний)"
                 if blink_clamped:
-                    msg += " (мигание приведено к 50–5000)"
+                    msg += " (мигание приведено к %d–%d)" % (config_store.BLINK_MIN_MS, config_store.BLINK_MAX_MS)
                 logbuf.log("web", "save region=%s interval=%s blink=%s/%s wifi_changed=%s" % (
                     cfg.get("region"), cfg.get("check_interval"),
                     cfg.get("blink_on_ms"), cfg.get("blink_off_ms"), wifi_changed))

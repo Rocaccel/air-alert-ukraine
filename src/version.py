@@ -1,2 +1,1 @@
-FW_VERSION = "0.7.3"
-FW_BUILD = "2026-11-19 a11y hints"
+FW_VERSION = "0.7.4"
