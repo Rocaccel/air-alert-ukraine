@@ -140,6 +140,7 @@ footer{text-align:center;margin-top:28px;font-size:.76rem;color:var(--text-dim)}
 </div>
 <div class="danger-zone"><div class="danger-title">Опасная зона</div>
 <div class="danger-actions">
+<form action="/rollback" method="POST" onsubmit="return confirm('Откатить прошивку из /bak? Файлы прошивки будут заменены резервной копией.')"><button class="btn btn-secondary" type="submit">Откатить прошивку из /bak</button></form>
 <form action="/reboot" method="POST" onsubmit="return confirm('Перезагрузить ESP32?')"><button class="btn btn-danger" type="submit">Перезагрузить</button></form>
 </div></div>
 </div></div>

@@ -508,6 +508,31 @@ def poll(srv, cfg, state, set_led=None):
                     pass
                 machine.reset()
                 return
+        elif path == "/rollback" and method == "POST":
+            if clen:
+                try:
+                    _d, buf = _recv_exact(conn, buf, min(clen, 2048), 8192)
+                except Exception:
+                    pass
+            restored = []
+            failed = []
+            try:
+                res = _ota().rollback()
+                if isinstance(res, tuple) and res[0]:
+                    restored = list(res[0])
+                if isinstance(res, tuple) and len(res) > 1 and res[1]:
+                    failed = list(res[1])
+            except Exception as e:
+                failed = ["ошибка: " + str(e)[:60]]
+            if restored or failed:
+                msg = "Откат из /bak: " + (", ".join(restored) if restored else "ничего не восстановлено")
+                if failed:
+                    msg += "; не удалось: " + ", ".join(failed)
+                msg += ". Перезагрузите устройство."
+            else:
+                msg = "Откат: в /bak нет файлов"
+            logbuf.log("ota", "rollback by user: " + msg[:120])
+            _send_template(conn, cfg, state, msg)
         elif path == "/reboot" and method == "POST":
             if clen:
                 try:
