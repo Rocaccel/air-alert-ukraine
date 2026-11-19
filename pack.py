@@ -46,10 +46,14 @@ def find_mpy_cross():
 
 
 mcpy = find_mpy_cross()
+root = os.path.dirname(os.path.abspath(__file__))
 for fn in MPY_SRC:
-    src_p = os.path.join(base, fn)
     out_p = os.path.join(base, fn[:-3] + '.mpy')
-    subprocess.run([mcpy, src_p, '-o', out_p], check=True)
+    # mpy-cross вшивает путь исходника в .mpy: абсолютный путь утекает
+    # в бандл (личные каталоги) и делает сборку невоспроизводимой —
+    # компилируем относительным путём из корня репо
+    subprocess.run([mcpy, os.path.join('src', fn), '-o', out_p],
+                   check=True, cwd=root)
     FILES.append(fn[:-3] + '.mpy')
 
 buf = io.BytesIO()
